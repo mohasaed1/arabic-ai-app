@@ -33,3 +33,26 @@ async def analyze_text(request: Request):
         },
         media_type="application/json; charset=utf-8"
     )
+from pydantic import BaseModel
+from typing import List, Dict
+
+class AnalysisRequest(BaseModel):
+    query: str
+    data: List[Dict]
+
+@app.post("/analyze-text")
+async def analyze_query(req: AnalysisRequest):
+    if "الربح" in req.query and "التكلفة" in req.query:
+        ratios = []
+        for row in req.data:
+            try:
+                profit = float(row.get("Revenue", 0)) - float(row.get("Cost", 0))
+                cost = float(row.get("Cost", 1))
+                ratio = round(profit / cost, 2) if cost else 0
+                ratios.append(ratio)
+            except:
+                continue
+        avg_ratio = sum(ratios) / len(ratios) if ratios else 0
+        return {"answer": f"🔍 متوسط نسبة الربح إلى التكلفة هو {avg_ratio}"}
+
+    return {"answer": "🤖 لم أتمكن من فهم الاستعلام أو حسابه من البيانات الحالية."}
