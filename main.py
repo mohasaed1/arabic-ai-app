@@ -5,14 +5,14 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Dict
 import requests
-import OpenAI
+import openai
 import os
 
 app = FastAPI()
 
 # Global variable to hold the OpenAI key
-OPENAI_API_KEY = None
-client = None
+openai.api_key = OPENAI_API_KEY
+
 
 # CORS setup for frontend communication
 app.add_middleware(
@@ -100,10 +100,10 @@ async def chat_with_gpt(req: ChatRequest):
         return {"error": "API key not loaded."}
 
     try:
-        response = openai.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": req.message}]
-        )
+        response = openai.ChatCompletion.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": req.message}]
+)
         return {"reply": response.choices[0].message.content}
     except Exception as e:
         print("❌ OpenAI API Error:", e)
