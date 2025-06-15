@@ -25,7 +25,7 @@ app.add_middleware(
 def fetch_wp_openai_key():
     global OPENAI_API_KEY
     try:
-        response = requests.get("https://gateofai.com/wp-json/gateofai/v1/openai-key?token=my-secure-token")
+        response = requests.get("https://gateofai.com/wp-json/gateofai/v1/openai-key?token=9xY8a27MsfGcLpV3nTzD1qLkswZ0aBqh")
         OPENAI_API_KEY = response.json().get("key")
         print("✅ OpenAI key loaded from WordPress.")
     except Exception as e:
