@@ -1,13 +1,11 @@
-print("🚀 Arabic AI App is starting...")
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Dict
+from openai import OpenAI
 import requests
 import os
-from openai import OpenAI
 
 # ✅ Globals
 OPENAI_API_KEY = None
@@ -19,12 +17,11 @@ app = FastAPI()
 # ✅ CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For prod: use ["https://app.gateofai.com"]
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Securely load OpenAI key from WordPress on startup
 @app.on_event("startup")
 def fetch_wp_openai_key():
     global OPENAI_API_KEY, client
@@ -47,12 +44,10 @@ def fetch_wp_openai_key():
     except Exception as e:
         print("❌ Error loading key:", e)
 
-# ✅ Basic test route
 @app.get("/")
 def home():
     return JSONResponse(content={"message": "🚀 Arabic AI API is running!"})
 
-# ✅ Debug endpoint
 @app.get("/debug-key")
 def debug_key():
     return {
@@ -60,56 +55,55 @@ def debug_key():
         "client_initialized": bool(client)
     }
 
-# ✅ Analyzer dummy
-@app.post("/analyze")
-async def analyze_text(request: Request):
-    data = await request.json()
-    return JSONResponse(content={
-        "summary": "هذا ملخص تجريبي للنص.",
-        "sentiment": "محايد",
-        "keywords": ["ذكاء", "اصطناعي", "تحليل"]
-    })
-
-# ✅ Analyzer w/ query
 class AnalysisRequest(BaseModel):
     query: str
     data: List[Dict]
 
 @app.post("/analyze-text")
 async def analyze_query(req: AnalysisRequest):
-    if "الربح" in req.query and "التكلفة" in req.query:
-        ratios = []
-        for row in req.data:
-            try:
-                profit = float(row.get("Revenue", 0)) - float(row.get("Cost", 0))
-                cost = float(row.get("Cost", 1))
-                ratio = round(profit / cost, 2) if cost else 0
-                ratios.append(ratio)
-            except:
-                continue
-        avg = round(sum(ratios) / len(ratios), 2) if ratios else 0
-        return {"answer": f"🔍 متوسط نسبة الربح إلى التكلفة هو {avg}"}
-    return {"answer": "❌ لم أتمكن من فهم الاستعلام."}
-
-# ✅ Chat route using OpenAI
-class ChatRequest(BaseModel):
-    message: str
-
-@app.post("/chat")
-async def chat_with_gpt(req: ChatRequest):
     if not client:
         return {"error": "OpenAI client not initialized."}
 
     try:
+        sample_data = req.data[:5]  # only show GPT a sample for context
+        prompt = (
+            "أنت مساعد ذكاء اصطناعي لتحليل البيانات. "
+            "سأرسل لك جزءًا من جدول بيانات المستخدم مع سؤاله، "
+            "أجب بشكل دقيق ومهني باللغة العربية، وإذا كان مناسبًا، اقترح اسم عمود لعرضه بالرسم البياني.\n"
+            f"البيانات:\n{sample_data}\n\nالسؤال:\n{req.query}"
+        )
+
         response = client.chat.completions.create(
             model="gpt-4",
-            messages=[{"role": "user", "content": req.message}]
+            messages=[
+                {"role": "system", "content": "مساعد ذكي لتحليل البيانات"},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        return {"answer": response.choices[0].message.content}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/chat")
+async def chat_with_gpt(request: Request):
+    if not client:
+        return {"error": "OpenAI client not initialized."}
+
+    body = await request.json()
+    message = body.get("message", "")
+    if not message:
+        return {"error": "Empty message."}
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": message}]
         )
         return {"reply": response.choices[0].message.content}
     except Exception as e:
         return {"error": str(e)}
 
-# ✅ Local dev runner
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
