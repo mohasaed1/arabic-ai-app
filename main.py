@@ -96,13 +96,14 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat_with_gpt(req: ChatRequest):
-    global OPENAI_API_KEY  # ✅ this line is crucial
+    global OPENAI_API_KEY  # ⬅️ This is the critical fix
 
     if not OPENAI_API_KEY:
         return {"error": "API key not loaded."}
 
+    openai.api_key = OPENAI_API_KEY  # ensure the key is explicitly set
+
     try:
-        openai.api_key = OPENAI_API_KEY  # ensure this line is executed
         response = openai.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": req.message}]
