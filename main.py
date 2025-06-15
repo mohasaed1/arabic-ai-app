@@ -9,47 +9,50 @@ import requests
 import os
 from openai import OpenAI
 
-app = FastAPI()
-
-# Global vars
+# ✅ Globals
 OPENAI_API_KEY = None
 client = None
 
-# ✅ Allow frontend
+# ✅ App init
+app = FastAPI()
+
+# ✅ CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # For prod: use ["https://app.gateofai.com"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Load key and client
+# ✅ Securely load OpenAI key from WordPress on startup
 @app.on_event("startup")
 def fetch_wp_openai_key():
     global OPENAI_API_KEY, client
     try:
-        print("🔄 Fetching OpenAI key...")
+        print("🔄 Fetching OpenAI key from WordPress...")
         response = requests.get(
             "https://gateofai.com/wp-json/gateofai/v1/openai-key",
             params={"token": "g8Zx12WvN43pDfK7LmTqY6bP9eAvJrCsXzM0HdQ2"},
             timeout=10
         )
         key = response.json().get("key")
+        print("🔑 Loaded API key from WP:", key)
+
         if key:
             OPENAI_API_KEY = key
-            client = OpenAI(api_key=key)
+            client = OpenAI(api_key=OPENAI_API_KEY)
             print("✅ OpenAI client initialized.")
         else:
-            print("⚠️ Key not found.")
+            print("⚠️ No key found in response.")
     except Exception as e:
-        print("❌ Error fetching key:", e)
+        print("❌ Error loading key:", e)
 
-# ✅ Health check
+# ✅ Basic test route
 @app.get("/")
 def home():
-    return {"message": "🚀 Arabic AI API is running!"}
+    return JSONResponse(content={"message": "🚀 Arabic AI API is running!"})
 
-# ✅ Debug status
+# ✅ Debug endpoint
 @app.get("/debug-key")
 def debug_key():
     return {
@@ -57,17 +60,17 @@ def debug_key():
         "client_initialized": bool(client)
     }
 
-# ✅ Basic analyze
+# ✅ Analyzer dummy
 @app.post("/analyze")
 async def analyze_text(request: Request):
     data = await request.json()
-    return {
+    return JSONResponse(content={
         "summary": "هذا ملخص تجريبي للنص.",
         "sentiment": "محايد",
         "keywords": ["ذكاء", "اصطناعي", "تحليل"]
-    }
+    })
 
-# ✅ Smart analysis
+# ✅ Analyzer w/ query
 class AnalysisRequest(BaseModel):
     query: str
     data: List[Dict]
@@ -88,13 +91,12 @@ async def analyze_query(req: AnalysisRequest):
         return {"answer": f"🔍 متوسط نسبة الربح إلى التكلفة هو {avg}"}
     return {"answer": "❌ لم أتمكن من فهم الاستعلام."}
 
-# ✅ ChatGPT endpoint
+# ✅ Chat route using OpenAI
 class ChatRequest(BaseModel):
     message: str
 
 @app.post("/chat")
 async def chat_with_gpt(req: ChatRequest):
-    global client
     if not client:
         return {"error": "OpenAI client not initialized."}
 
@@ -107,7 +109,7 @@ async def chat_with_gpt(req: ChatRequest):
     except Exception as e:
         return {"error": str(e)}
 
-# ✅ Run locally
+# ✅ Local dev runner
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
