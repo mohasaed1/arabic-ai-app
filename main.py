@@ -97,9 +97,11 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 async def chat_with_gpt(req: ChatRequest):
     if not OPENAI_API_KEY:
-        return {"error": "API key not loaded."}
-    if not client:
-        return {"error": "OpenAI client not initialized."}
+    return {"error": "API key not loaded."}
+
+if not client:
+    return {"error": "OpenAI client not initialized."}
+
 
     try:
         response = client.chat.completions.create(
