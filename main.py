@@ -1,3 +1,4 @@
+print("🚀 Arabic AI App is starting...")
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -21,21 +22,23 @@ app.add_middleware(
 )
 
 # Fetch OpenAI key securely from WordPress at startup
+
 @app.on_event("startup")
 def fetch_wp_openai_key():
     global OPENAI_API_KEY
     try:
+        print("🔄 Fetching OpenAI key from WordPress...")
         response = requests.get(
             "https://gateofai.com/wp-json/gateofai/v1/openai-key",
             params={"token": "g8Zx12WvN43pDfK7LmTqY6bP9eAvJrCsXzM0HdQ2"},
             timeout=10
         )
-        print("⚡ WP endpoint status:", response.status_code)
-        print("📦 WP response body:", response.text)
+        print("🌐 Response status:", response.status_code)
+        print("📦 Response body:", response.text)
         OPENAI_API_KEY = response.json().get("key")
-        print("🔑 Loaded API key:", OPENAI_API_KEY)
+        print("🔑 Loaded key:", OPENAI_API_KEY)
     except Exception as e:
-        print("❌ Could not fetch WP key:", e)
+        print("❌ Exception during fetch_wp_openai_key:", e)
 
 
 @app.get("/")
