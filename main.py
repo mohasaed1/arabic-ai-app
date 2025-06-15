@@ -90,18 +90,17 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat_with_gpt(req: ChatRequest):
-    global OPENAI_API_KEY
-    if not OPENAI_API_KEY:
-        return {"error": "❌ OpenAI API key not loaded."}
-
+    if not openai.api_key:
+        return {"error": "OpenAI API key not initialized."}
+    
     try:
         response = openai.ChatCompletion.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": req.message}]
-)
+            model="gpt-4",
+            messages=[{"role": "user", "content": req.message}]
+        )
         return {"reply": response.choices[0].message.content}
     except Exception as e:
-        print("❌ OpenAI API error:", e)
+        print("❌ OpenAI API Error:", e)
         return {"error": str(e)}
 
 # ✅ Local dev runner
