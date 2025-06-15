@@ -31,6 +31,7 @@ def fetch_wp_openai_key():
     except Exception as e:
         print("❌ Failed to fetch OpenAI key from WordPress:", e)
 
+
 @app.get("/")
 def home():
     return JSONResponse(
