@@ -1,4 +1,5 @@
 print("🚀 Arabic AI App is starting...")
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -10,20 +11,18 @@ import os
 
 app = FastAPI()
 
-# Global variable to hold the OpenAI key
-openai.api_key = OPENAI_API_KEY
+# ✅ Ensure global OpenAI key is declared at the top
+OPENAI_API_KEY = None
 
-
-# CORS setup for frontend communication
+# ✅ CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with ["https://app.gateofai.com"] for production
+    allow_origins=["*"],  # For prod: use ["https://app.gateofai.com"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Fetch OpenAI key securely from WordPress at startup
-
+# ✅ Securely load OpenAI key from WordPress on startup
 @app.on_event("startup")
 def fetch_wp_openai_key():
     global OPENAI_API_KEY
@@ -34,41 +33,37 @@ def fetch_wp_openai_key():
             params={"token": "g8Zx12WvN43pDfK7LmTqY6bP9eAvJrCsXzM0HdQ2"},
             timeout=10
         )
-        print("🌐 Response status:", response.status_code)
-        print("📦 Response body:", response.text)
         OPENAI_API_KEY = response.json().get("key")
-
         if OPENAI_API_KEY:
             openai.api_key = OPENAI_API_KEY
             print("✅ OpenAI key loaded.")
         else:
-            print("⚠️ Key missing in response.")
+            print("⚠️ No key found in WP response.")
     except Exception as e:
         print("❌ Failed to fetch OpenAI key:", e)
 
-
+# ✅ Basic test route
 @app.get("/")
 def home():
-    return JSONResponse(
-        content={"message": "🚀 Arabic AI API is running!"},
-        media_type="application/json; charset=utf-8"
-    )
+    return JSONResponse(content={"message": "🚀 Arabic AI API is running!"})
 
+# ✅ Debug endpoint
+@app.get("/debug-key")
+def debug_key():
+    global OPENAI_API_KEY
+    return {"key_loaded": bool(OPENAI_API_KEY)}
+
+# ✅ Analyzer dummy
 @app.post("/analyze")
 async def analyze_text(request: Request):
     data = await request.json()
-    text = data.get("text", "")
+    return JSONResponse(content={
+        "summary": "هذا ملخص تجريبي للنص.",
+        "sentiment": "محايد",
+        "keywords": ["ذكاء", "اصطناعي", "تحليل"]
+    })
 
-    # Placeholder logic – replace with HuggingFace / CAMeL models later
-    return JSONResponse(
-        content={
-            "summary": "هذا ملخص تجريبي للنص.",
-            "sentiment": "محايد",
-            "keywords": ["ذكاء", "اصطناعي", "تحليل"]
-        },
-        media_type="application/json; charset=utf-8"
-    )
-
+# ✅ Analyzer w/ query
 class AnalysisRequest(BaseModel):
     query: str
     data: List[Dict]
@@ -85,35 +80,31 @@ async def analyze_query(req: AnalysisRequest):
                 ratios.append(ratio)
             except:
                 continue
-        avg_ratio = sum(ratios) / len(ratios) if ratios else 0
-        return {"answer": f"🔍 متوسط نسبة الربح إلى التكلفة هو {avg_ratio}"}
+        avg = round(sum(ratios) / len(ratios), 2) if ratios else 0
+        return {"answer": f"🔍 متوسط نسبة الربح إلى التكلفة هو {avg}"}
+    return {"answer": "❌ لم أتمكن من فهم الاستعلام."}
 
-    return {"answer": "لم أتمكن من فهم الاستعلام أو حسابه من البيانات الحالية."}
-
-# 🔌 ChatGPT Proxy
+# ✅ Chat route using OpenAI
 class ChatRequest(BaseModel):
     message: str
 
 @app.post("/chat")
 async def chat_with_gpt(req: ChatRequest):
-    global OPENAI_API_KEY  # ⬅️ This is the critical fix
-
+    global OPENAI_API_KEY
     if not OPENAI_API_KEY:
-        return {"error": "API key not loaded."}
-
-    openai.api_key = OPENAI_API_KEY  # ensure the key is explicitly set
+        return {"error": "❌ OpenAI API key not loaded."}
 
     try:
-        response = openai.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": req.message}]
         )
         return {"reply": response.choices[0].message.content}
     except Exception as e:
-        print("❌ OpenAI API Error:", e)
+        print("❌ OpenAI API error:", e)
         return {"error": str(e)}
 
+# ✅ Local dev runner
 if __name__ == "__main__":
     import uvicorn
-    import os
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
