@@ -96,9 +96,9 @@ async def chat_with_gpt(req: ChatRequest):
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": req.message}]
-        )
+    model="gpt-4",
+    messages=[{"role": "user", "content": req.message}]
+)
         return {"reply": response.choices[0].message.content}
     except Exception as e:
         print("❌ OpenAI API error:", e)
