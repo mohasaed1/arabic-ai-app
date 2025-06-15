@@ -1,16 +1,35 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import List, Dict
+import requests
+import openai
+import os
 
 app = FastAPI()
+
+# Global variable to hold the OpenAI key
+OPENAI_API_KEY = None
 
 # CORS setup for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can restrict to your frontend domain later
+    allow_origins=["*"],  # Replace with ["https://app.gateofai.com"] for production
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Fetch OpenAI key securely from WordPress at startup
+@app.on_event("startup")
+def fetch_wp_openai_key():
+    global OPENAI_API_KEY
+    try:
+        response = requests.get("https://gateofai.com/wp-json/gateofai/v1/openai-key?token=my-secure-token")
+        OPENAI_API_KEY = response.json().get("key")
+        print("✅ OpenAI key loaded from WordPress.")
+    except Exception as e:
+        print("❌ Failed to fetch OpenAI key from WordPress:", e)
 
 @app.get("/")
 def home():
@@ -33,8 +52,6 @@ async def analyze_text(request: Request):
         },
         media_type="application/json; charset=utf-8"
     )
-from pydantic import BaseModel
-from typing import List, Dict
 
 class AnalysisRequest(BaseModel):
     query: str
@@ -55,4 +72,23 @@ async def analyze_query(req: AnalysisRequest):
         avg_ratio = sum(ratios) / len(ratios) if ratios else 0
         return {"answer": f"🔍 متوسط نسبة الربح إلى التكلفة هو {avg_ratio}"}
 
-    return {"answer": "🤖 لم أتمكن من فهم الاستعلام أو حسابه من البيانات الحالية."}
+    return {"answer": "لم أتمكن من فهم الاستعلام أو حسابه من البيانات الحالية."}
+
+# 🔌 ChatGPT Proxy
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/chat")
+async def chat_with_gpt(req: ChatRequest):
+    if not OPENAI_API_KEY:
+        return {"error": "API key not loaded."}
+
+    openai.api_key = OPENAI_API_KEY
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": req.message}]
+        )
+        return {"reply": response.choices[0].message.content}
+    except Exception as e:
+        return {"error": str(e)}
