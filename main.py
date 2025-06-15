@@ -6,8 +6,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Dict
 import requests
-import openai
 import os
+from openai import OpenAI
+client = None
+
 
 app = FastAPI()
 
@@ -23,9 +25,10 @@ app.add_middleware(
 )
 
 # ✅ Securely load OpenAI key from WordPress on startup
+
 @app.on_event("startup")
 def fetch_wp_openai_key():
-    global OPENAI_API_KEY
+    global OPENAI_API_KEY, client
     try:
         print("🔄 Fetching OpenAI key from WordPress...")
         response = requests.get(
@@ -35,8 +38,8 @@ def fetch_wp_openai_key():
         )
         OPENAI_API_KEY = response.json().get("key")
         if OPENAI_API_KEY:
-            openai.api_key = OPENAI_API_KEY
-            print("✅ OpenAI key loaded.")
+            client = OpenAI(api_key=OPENAI_API_KEY)
+            print("✅ OpenAI key loaded and client initialized.")
         else:
             print("⚠️ No key found in WP response.")
     except Exception as e:
@@ -90,17 +93,16 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat_with_gpt(req: ChatRequest):
-    if not openai.api_key:
-        return {"error": "OpenAI API key not initialized."}
-    
+    if not client:
+        return {"error": "OpenAI client not initialized."}
+
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": req.message}]
         )
         return {"reply": response.choices[0].message.content}
     except Exception as e:
-        print("❌ OpenAI API Error:", e)
         return {"error": str(e)}
 
 # ✅ Local dev runner
