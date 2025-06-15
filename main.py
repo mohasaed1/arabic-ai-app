@@ -40,14 +40,16 @@ def fetch_wp_openai_key():
             timeout=10
         )
         OPENAI_API_KEY = response.json().get("key")
+        print("🔑 Loaded API key:", OPENAI_API_KEY)
 
         if OPENAI_API_KEY:
             client = OpenAI(api_key=OPENAI_API_KEY)
-            print("✅ OpenAI client initialized.")
+            print("✅ Client initialized:", client)
         else:
-            print("⚠️ No key found in WordPress response.")
+            print("⚠️ No key found in WP response.")
     except Exception as e:
         print("❌ Failed to fetch OpenAI key:", e)
+
 
 
 # ✅ Basic test route
