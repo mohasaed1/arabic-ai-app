@@ -92,3 +92,7 @@ async def chat_with_gpt(req: ChatRequest):
         return {"reply": response.choices[0].message.content}
     except Exception as e:
         return {"error": str(e)}
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
