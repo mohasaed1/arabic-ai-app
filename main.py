@@ -98,18 +98,18 @@ class ChatRequest(BaseModel):
 async def chat_with_gpt(req: ChatRequest):
     if not OPENAI_API_KEY:
         return {"error": "API key not loaded."}
-
-        if not client:
+    if not client:
         return {"error": "OpenAI client not initialized."}
+
     try:
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": req.message}]
         )
-
         return {"reply": response.choices[0].message.content}
     except Exception as e:
         return {"error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     import os
