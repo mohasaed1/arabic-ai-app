@@ -6,6 +6,7 @@ from typing import List, Dict
 from openai import OpenAI
 import requests
 import os
+import json
 
 # ✅ Globals
 OPENAI_API_KEY = None
@@ -65,19 +66,18 @@ async def analyze_query(req: AnalysisRequest):
         return {"error": "OpenAI client not initialized."}
 
     try:
-        sample_data = req.data[:5]  # only show GPT a sample for context
         prompt = (
-            "أنت مساعد ذكاء اصطناعي لتحليل البيانات. "
-            "سأرسل لك جزءًا من جدول بيانات المستخدم مع سؤاله، "
-            "أجب بشكل دقيق ومهني باللغة العربية، وإذا كان مناسبًا، اقترح اسم عمود لعرضه بالرسم البياني.\n"
-            f"البيانات:\n{sample_data}\n\nالسؤال:\n{req.query}"
+            "أنت مساعد تحليل بيانات ذكي. ستتلقى استفسار المستخدم وجدول بيانات جزئي (أول 5 صفوف). "
+            "قم بتحليل البيانات، أجرِ الحسابات المطلوبة إن أمكن، وقدم شرحًا واضحًا بالاعتماد على البيانات."
         )
+
+        user_input = f"سؤال المستخدم: {req.query}\n\nبيانات المستخدم (صفوف معاينة):\n{json.dumps(req.data[:5], ensure_ascii=False)}"
 
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "مساعد ذكي لتحليل البيانات"},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user_input}
             ]
         )
 
