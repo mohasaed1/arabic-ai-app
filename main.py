@@ -8,7 +8,10 @@ from typing import List, Dict
 import requests
 import os
 from openai import OpenAI
+
+OPENAI_API_KEY = None
 client = None
+
 
 
 app = FastAPI()
@@ -37,13 +40,15 @@ def fetch_wp_openai_key():
             timeout=10
         )
         OPENAI_API_KEY = response.json().get("key")
+
         if OPENAI_API_KEY:
             client = OpenAI(api_key=OPENAI_API_KEY)
-            print("✅ OpenAI key loaded and client initialized.")
+            print("✅ OpenAI client initialized.")
         else:
-            print("⚠️ No key found in WP response.")
+            print("⚠️ No key found in WordPress response.")
     except Exception as e:
         print("❌ Failed to fetch OpenAI key:", e)
+
 
 # ✅ Basic test route
 @app.get("/")
