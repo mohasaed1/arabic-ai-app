@@ -39,17 +39,19 @@ def fetch_wp_openai_key():
             params={"token": "g8Zx12WvN43pDfK7LmTqY6bP9eAvJrCsXzM0HdQ2"},
             timeout=10
         )
-        OPENAI_API_KEY = response.json().get("key")
-        print("🔑 Loaded API key:", OPENAI_API_KEY)
+        key = response.json().get("key")
+        print("🔑 Loaded API key from WP:", key)
 
-        if OPENAI_API_KEY:
-            client = OpenAI(api_key=OPENAI_API_KEY)
-            print("✅ Client initialized:", client)
+        if key:
+            OPENAI_API_KEY = key
+            # 👇 assign here after setting key
+            from openai import OpenAI
+            globals()["client"] = OpenAI(api_key=OPENAI_API_KEY)
+            print("✅ OpenAI client initialized.")
         else:
-            print("⚠️ No key found in WP response.")
+            print("⚠️ No key found in response.")
     except Exception as e:
-        print("❌ Failed to fetch OpenAI key:", e)
-
+        print("❌ Error loading key:", e)
 
 
 # ✅ Basic test route
@@ -116,3 +118,10 @@ async def chat_with_gpt(req: ChatRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+
+@app.get("/debug-key")
+def debug_key():
+    return {
+        "key_loaded": bool(OPENAI_API_KEY),
+        "client_initialized": bool(client)
+    }
