@@ -9,15 +9,12 @@ import requests
 import os
 from openai import OpenAI
 
+# ✅ Globals
 OPENAI_API_KEY = None
 client = None
 
-
-
+# ✅ App init
 app = FastAPI()
-
-# ✅ Ensure global OpenAI key is declared at the top
-OPENAI_API_KEY = None
 
 # ✅ CORS for frontend access
 app.add_middleware(
@@ -28,7 +25,6 @@ app.add_middleware(
 )
 
 # ✅ Securely load OpenAI key from WordPress on startup
-
 @app.on_event("startup")
 def fetch_wp_openai_key():
     global OPENAI_API_KEY, client
@@ -44,15 +40,12 @@ def fetch_wp_openai_key():
 
         if key:
             OPENAI_API_KEY = key
-            # 👇 assign here after setting key
-            from openai import OpenAI
-            globals()["client"] = OpenAI(api_key=OPENAI_API_KEY)
+            client = OpenAI(api_key=OPENAI_API_KEY)
             print("✅ OpenAI client initialized.")
         else:
             print("⚠️ No key found in response.")
     except Exception as e:
         print("❌ Error loading key:", e)
-
 
 # ✅ Basic test route
 @app.get("/")
@@ -62,8 +55,10 @@ def home():
 # ✅ Debug endpoint
 @app.get("/debug-key")
 def debug_key():
-    global OPENAI_API_KEY
-    return {"key_loaded": bool(OPENAI_API_KEY)}
+    return {
+        "key_loaded": bool(OPENAI_API_KEY),
+        "client_initialized": bool(client)
+    }
 
 # ✅ Analyzer dummy
 @app.post("/analyze")
@@ -118,10 +113,3 @@ async def chat_with_gpt(req: ChatRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
-
-@app.get("/debug-key")
-def debug_key():
-    return {
-        "key_loaded": bool(OPENAI_API_KEY),
-        "client_initialized": bool(client)
-    }
