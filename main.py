@@ -32,17 +32,21 @@ async def chat_with_data(payload: QueryPayload):
 
         prompt = f"You are a helpful data analyst.\n{df_summary}\n\nUser question: {payload.message}"
 
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful data assistant. Answer clearly and directly."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.3
-        )
+       from openai import OpenAI
 
-        reply = response.choices[0].message.content.strip()
-        return {"reply": reply}
+client = OpenAI()
+
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[
+        {"role": "system", "content": "You are a helpful data assistant. Answer clearly and directly."},
+        {"role": "user", "content": prompt},
+    ],
+    temperature=0.3
+)
+
+reply = response.choices[0].message.content.strip()
+
 
     except Exception as e:
         print("Error in /chat endpoint:", str(e))  # For Railway logs
