@@ -97,7 +97,6 @@ fastapi==0.110.0
 openai>=1.30.0
 pandas
 openpyxl
-camel-tools
 transformers
 
 
