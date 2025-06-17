@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
@@ -24,14 +24,12 @@ class QueryPayload(BaseModel):
 @app.post("/chat")
 async def chat_with_data(payload: QueryPayload):
     try:
-        # If data is provided, summarize it using pandas
         df_summary = ""
         if payload.data:
             df = pd.DataFrame(payload.data)
-            summary = df.describe(include='all').to_string()
+            summary = df.describe(include='all', datetime_is_numeric=True).to_string()
             df_summary = f"Here is the data summary:\n{summary}"
 
-        # Build final prompt
         prompt = f"You are a helpful data analyst.\n{df_summary}\n\nUser question: {payload.message}"
 
         response = openai.ChatCompletion.create(
@@ -45,5 +43,7 @@ async def chat_with_data(payload: QueryPayload):
 
         reply = response.choices[0].message.content.strip()
         return {"reply": reply}
+
     except Exception as e:
-        return {"error": str(e)}
+        print("Error in /chat endpoint:", str(e))  # For Railway logs
+        return {"reply": f"❌ Server error: {str(e)}"}
