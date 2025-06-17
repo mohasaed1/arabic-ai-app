@@ -27,7 +27,7 @@ async def chat_with_data(payload: QueryPayload):
         df_summary = ""
         if payload.data:
             df = pd.DataFrame(payload.data)
-            summary = df.describe(include='all', datetime_is_numeric=True).to_string()
+            summary = df.describe(include='all').to_string()
             df_summary = f"Here is the data summary:\n{summary}"
 
         prompt = f"You are a helpful data analyst.\n{df_summary}\n\nUser question: {payload.message}"
