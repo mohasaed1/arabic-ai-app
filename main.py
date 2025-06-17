@@ -2,11 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
-import openai
 import os
+from openai import OpenAI
 
+# Initialize OpenAI client with API key
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Initialize FastAPI app
 app = FastAPI()
 
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,39 +20,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
+# Define request schema
 class QueryPayload(BaseModel):
     message: str
     data: list[dict] = []
 
+# Define POST endpoint
 @app.post("/chat")
 async def chat_with_data(payload: QueryPayload):
     try:
         df_summary = ""
         if payload.data:
             df = pd.DataFrame(payload.data)
-            summary = df.describe(include='all').to_string()
+            summary = df.describe(include="all").to_string()
             df_summary = f"Here is the data summary:\n{summary}"
 
         prompt = f"You are a helpful data analyst.\n{df_summary}\n\nUser question: {payload.message}"
 
-       from openai import OpenAI
+        # Make OpenAI request
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful data assistant. Answer clearly and directly."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+        )
 
-client = OpenAI()
-
-response = client.chat.completions.create(
-    model="gpt-4",
-    messages=[
-        {"role": "system", "content": "You are a helpful data assistant. Answer clearly and directly."},
-        {"role": "user", "content": prompt},
-    ],
-    temperature=0.3
-)
-
-reply = response.choices[0].message.content.strip()
-
+        reply = response.choices[0].message.content.strip()
+        return {"reply": reply}
 
     except Exception as e:
-        print("Error in /chat endpoint:", str(e))  # For Railway logs
+        print("Error in /chat endpoint:", str(e))
         return {"reply": f"❌ Server error: {str(e)}"}
