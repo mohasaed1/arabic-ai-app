@@ -5,42 +5,37 @@ import pandas as pd
 import os
 from openai import OpenAI
 
-# ✅ Initialize OpenAI client correctly
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# ✅ FastAPI app
+# Initialize FastAPI app
 app = FastAPI()
 
-# ✅ Allow CORS (needed for frontend)
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Or restrict to your domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Input model for POST requests
+# Request schema
 class QueryPayload(BaseModel):
     message: str
     data: list[dict] = []
 
-# ✅ Chat endpoint
+# Create OpenAI client — WITHOUT passing api_key
+client = OpenAI()
+
 @app.post("/chat")
 async def chat_with_data(payload: QueryPayload):
     try:
         df_summary = ""
-
-        # Optional: summarize data if included
         if payload.data:
             df = pd.DataFrame(payload.data)
             summary = df.describe(include="all").to_string()
             df_summary = f"Here is the data summary:\n{summary}"
 
-        # Full prompt
         prompt = f"You are a helpful data analyst.\n{df_summary}\n\nUser question: {payload.message}"
 
-        # OpenAI API call (new SDK format)
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
@@ -50,11 +45,9 @@ async def chat_with_data(payload: QueryPayload):
             temperature=0.3,
         )
 
-        # Extract reply
         reply = response.choices[0].message.content.strip()
         return {"reply": reply}
 
     except Exception as e:
-        # Useful for Railway logs
         print("Error in /chat endpoint:", str(e))
         return {"reply": f"❌ Server error: {str(e)}"}
