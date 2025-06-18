@@ -5,13 +5,9 @@ import pandas as pd
 from openai import OpenAI
 import os
 
-# Initialize OpenAI client with secure environment variable
+# Initialize OpenAI client with environment variable
 api_key = os.getenv("OPENAI_API_KEY", "")
 client = OpenAI(api_key=api_key) if api_key else None
-
-if not client:
-    return {"reply": "❌ OPENAI_API_KEY not set on server. Please contact admin."}
-
 
 # FastAPI app
 app = FastAPI()
@@ -25,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request payload model
+# Request model
 class QueryPayload(BaseModel):
     message: str
     data: list[dict] = []
@@ -33,8 +29,10 @@ class QueryPayload(BaseModel):
 # Chat endpoint
 @app.post("/chat")
 async def chat_with_data(payload: QueryPayload):
+    if not client:
+        return {"reply": "❌ OPENAI_API_KEY not set on server. Please contact admin."}
+    
     try:
-        # Data summary (if provided)
         df_summary = ""
         if payload.data:
             df = pd.DataFrame(payload.data)
