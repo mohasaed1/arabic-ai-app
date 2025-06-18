@@ -2,44 +2,45 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
-from openai import OpenAI
 import os
+from openai import OpenAI
 
-# Initialize FastAPI app
+# Ensure the API key is loaded
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("❌ OPENAI_API_KEY is not set in environment variables.")
+
+# Initialize OpenAI client with API key
+client = OpenAI(api_key=api_key)
+
+# Initialize FastAPI
 app = FastAPI()
 
-# Enable CORS (adjust domains as needed)
+# Enable CORS for all origins (adjust for security)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can restrict this to your domain
+    allow_origins=["*"],  # Or restrict to ["https://app.gateofai.com"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize OpenAI client using environment variable
-client = OpenAI()  # Reads OPENAI_API_KEY from environment
-
-# Pydantic model for request body
+# Request schema
 class QueryPayload(BaseModel):
     message: str
     data: list[dict] = []
 
-# POST endpoint to handle chat with optional data
 @app.post("/chat")
 async def chat_with_data(payload: QueryPayload):
     try:
         df_summary = ""
         if payload.data:
             df = pd.DataFrame(payload.data)
-            # Remove unsupported describe argument
             summary = df.describe(include="all").to_string()
             df_summary = f"Here is a summary of your data:\n{summary}"
 
-        # Compose full prompt for GPT
         prompt = f"You are a helpful data analyst.\n{df_summary}\n\nUser question: {payload.message}"
 
-        # Request OpenAI chat completion
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
@@ -53,5 +54,5 @@ async def chat_with_data(payload: QueryPayload):
         return {"reply": reply}
 
     except Exception as e:
-        print("Error:", str(e))
+        print("❌ Error in /chat:", str(e))
         return {"reply": f"❌ Server error: {str(e)}"}
