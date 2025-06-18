@@ -94,9 +94,9 @@ websocket-client==1.8.0
 click==8.2.1
 uvicorn==0.29.0
 fastapi==0.110.0
-openai>=1.30.0
-pandas>=1.1.0
 openpyxl
 transformers
-
-
+fastapi==0.110.0
+pandas>=1.1.0
+openai>=1.30.0
+python-dotenv
