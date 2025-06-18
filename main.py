@@ -6,11 +6,12 @@ from openai import OpenAI
 import os
 
 # Initialize OpenAI client with secure environment variable
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("❌ OPENAI_API_KEY is not set in environment variables.")
+api_key = os.getenv("OPENAI_API_KEY", "")
+client = OpenAI(api_key=api_key) if api_key else None
 
-client = OpenAI(api_key=api_key)
+if not client:
+    return {"reply": "❌ OPENAI_API_KEY not set on server. Please contact admin."}
+
 
 # FastAPI app
 app = FastAPI()
