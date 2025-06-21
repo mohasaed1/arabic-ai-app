@@ -15,42 +15,47 @@ app = FastAPI()
 # CORS settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Replace with frontend domain in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Request model
-class QueryPayload(BaseModel):
-    message: str
+class ChatRequest(BaseModel):
+    question: str
     data: list[dict] = []
+    language: str = "en"
 
 # Chat endpoint
-@app.post("/chat")
-async def chat_with_data(payload: QueryPayload):
+@app.post("/chat-with-data")
+async def chat_with_data(payload: ChatRequest):
     if not client:
-        return {"reply": "❌ OPENAI_API_KEY not set on server. Please contact admin."}
-    
+        return {"answer": "❌ OPENAI_API_KEY not set on server. Please contact admin."}
+
     try:
         df_summary = ""
         if payload.data:
             df = pd.DataFrame(payload.data)
             summary = df.describe(include='all').to_string()
-            df_summary = f"Here is the data summary:\n{summary}"
+            df_summary = f"\n\nHere is a preview of the uploaded data (first 5 rows):\n{df.head().to_string()}\n\nSummary:\n{summary}"
 
-        prompt = f"You are a helpful data analyst.\n{df_summary}\n\nUser question: {payload.message}"
+        if payload.language == "ar":
+            prompt = f"الرجاء تحليل البيانات التالية والإجابة عن السؤال: {payload.question}.{df_summary}"
+        else:
+            prompt = f"Please analyze the following data and answer the question: {payload.question}.{df_summary}"
 
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a helpful data assistant. Answer clearly and directly."},
+                {"role": "system", "content": "You are a helpful data analyst who can answer questions about tabular data."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3
         )
 
-        reply = response.choices[0].message.content.strip()
-        return {"reply": reply}
+        answer = response.choices[0].message.content.strip()
+        return {"answer": answer}
+
     except Exception as e:
-        return {"reply": f"❌ Server error: {str(e)}"}
+        return {"answer": f"❌ Server error: {str(e)}"}
