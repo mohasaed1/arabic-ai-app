@@ -5,10 +5,13 @@ from pydantic import BaseModel
 import pandas as pd
 from openai import OpenAI
 import os
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://app.gateofai.com"]
+    allow_origins=["https://app.gateofai.com"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
