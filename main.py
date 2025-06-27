@@ -6,6 +6,13 @@ import pandas as pd
 from openai import OpenAI
 import os
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://app.gateofai.com"]
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Initialize OpenAI client
 api_key = os.getenv("OPENAI_API_KEY", "")
 client = OpenAI(api_key=api_key) if api_key else None
