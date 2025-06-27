@@ -1,3 +1,4 @@
+from routes.upload_file import router as upload_file_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -59,3 +60,5 @@ async def chat_with_data(payload: SmartChatRequest):
 
     except Exception as e:
         return {"reply": f"❌ Server error: {str(e)}"}
+
+app.include_router(upload_file_router)
