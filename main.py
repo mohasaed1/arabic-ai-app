@@ -35,15 +35,20 @@ async def chat_with_data(payload: SmartChatRequest):
         df_summary = ""
         if payload.data:
             df = pd.DataFrame(payload.data)
-            summary = df.describe(include='all').to_string()
-            df_summary = f"\n\nPreview (first 5 rows):\n{df.head().to_string()}\n\nSummary:\n{summary}"
+            numeric_cols = df.select_dtypes(include='number').columns
 
-        prompt = f"{df_summary}\n\nQuestion: {payload.message}"
+            stats = df[numeric_cols].agg(['sum', 'mean', 'min', 'max']).to_string() if not numeric_cols.empty else "No numeric data available."
+            preview = df.head().to_string(index=False)
+
+            df_summary = f"🔎 Preview (first 5 rows):\n{preview}\n\n📊 Numeric Summary (sum, avg, min, max):\n{stats}"
+
+        lang = "ar" if any('\u0600' <= char <= '\u06FF' for char in payload.message) else "en"
+        prompt = f"{df_summary}\n\n📥 Question:\n{payload.message}"
 
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a helpful data analyst who answers questions about tabular data."},
+                {"role": "system", "content": "You are a multilingual data analyst who answers questions based on tables, supporting Arabic and English. Always compute totals or summaries when requested."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3
