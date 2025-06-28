@@ -1,5 +1,5 @@
-# main.py
-from fastapi import FastAPI, File, UploadFile, Form
+# main.py 
+from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
@@ -23,39 +23,39 @@ class ChatRequest(BaseModel):
     data: List[dict]
     lang: Optional[str] = "en"
 
+# Helper to detect relevant columns
+def find_relevant_column(df, keywords):
+    for col in df.columns:
+        for kw in keywords:
+            if kw.lower() in col.lower():
+                return col
+    return None
+
 @app.post("/chat")
 def chat_endpoint(payload: ChatRequest):
     try:
+        df = pd.DataFrame(payload.data)
         msg = payload.message.lower()
-        data = pd.DataFrame(payload.data)
-        if data.empty:
-            return {"reply": "❌ البيانات غير كافية للإجابة." if payload.lang == 'ar' else "❌ Not enough data to answer."}
+        lang = payload.lang or 'en'
+        if df.empty:
+            return {"reply": "❌ البيانات غير كافية للإجابة." if lang == 'ar' else "❌ Not enough data to answer."}
 
-        cols = data.columns.tolist()
-        reply = ""
+        # Common targets
+        targets = ['total', 'sum', 'average', 'count', 'اجمالي', 'مجموع', 'متوسط', 'عدد']
+        metric_col = find_relevant_column(df, ['revenue', 'profit', 'cost', 'sold', 'price', 'units', 'مبيعات', 'الربح'])
+        group_col = find_relevant_column(df, ['category', 'type', 'item', 'region', 'country', 'القسم', 'النوع'])
 
-        if any(x in msg for x in ["average", "mean", "متوسط"]):
-            numeric_cols = data.select_dtypes(include='number').columns.tolist()
-            if numeric_cols:
-                avg = data[numeric_cols].mean().round(2)
-                reply = "\n".join([f"📊 {col}: {val}" for col, val in avg.items()])
+        # Simulate NLP intent detection
+        if any(t in msg for t in targets) and metric_col:
+            if group_col and group_col != metric_col:
+                summary = df.groupby(group_col)[metric_col].sum().sort_values(ascending=False).head(5)
+                lines = [f"📊 {k}: {v:.2f}" for k, v in summary.items()]
+                reply = "\n".join(lines)
             else:
-                reply = "❌ لا توجد أعمدة رقمية لحساب المتوسط." if payload.lang == 'ar' else "❌ No numeric columns to average."
-
-        elif any(x in msg for x in ["column", "العمود", "chart", "الرسم"]):
-            reply = f"🧭 {'استخدم الرسم العمودي لعرض البيانات من العمود' if payload.lang == 'ar' else 'Use bar chart for column'}: {cols[0]}"
-
-        elif any(x in msg for x in ["top", "الأكثر"]):
-            top_stats = []
-            for col in cols:
-                if data[col].dtype == object:
-                    freq = data[col].value_counts().head(3)
-                    summary = ", ".join([f"{k} ({v})" for k, v in freq.items()])
-                    top_stats.append(f"🗂️ {col}: {summary}")
-            reply = "\n".join(top_stats) or ("❌ لا توجد أعمدة نصية." if payload.lang == 'ar' else "❌ No text columns found.")
-
+                total = df[metric_col].sum()
+                reply = f"📊 {metric_col}: {total:.2f}"
         else:
-            reply = "🔍 يمكنك طلب متوسط، رسم بياني، أو القيم المتكررة." if payload.lang == 'ar' else "🔍 You can ask for averages, charts, or top values."
+            reply = "🔍 يمكنك طرح أي سؤال حول المبيعات أو الأداء، وسنقوم بالتحليل." if lang == 'ar' else "🔍 Ask any question about sales or performance, and we'll analyze it."
 
         return {"reply": reply}
 
