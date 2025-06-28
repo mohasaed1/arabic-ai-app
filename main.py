@@ -166,3 +166,24 @@ def upload_file(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+if (parsedFiles.length === 1) {
+  const data = parsedFiles[0].data;
+  setAllData(data);
+  const headers = [{
+    fileName: parsedFiles[0].name,
+    headers: Object.keys(data[0] || {}).filter(k => k && !k.toLowerCase().includes('empty'))
+  }];
+  setFileHeaders(headers);
+  setSelectedColumns(headers.map(h => h.headers.slice(0, 1)));
+  setInsights(generateInsights(data));
+
+  const validCols = headers[0].headers;
+  const textCol = validCols.find(h => typeof data[0][h] === 'string' && data[0][h].trim());
+  const numCol = validCols.find(h => !isNaN(parseFloat(data[0][h])));
+  if (textCol && numCol) {
+    setSuggestedChart({ x: textCol, y: numCol, type: 'bar' });
+  }
+runFullAI();
+
+}
