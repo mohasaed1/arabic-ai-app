@@ -1,4 +1,4 @@
-# main.py 
+# main.py (join-files with explicit column control)
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -6,7 +6,7 @@ import pandas as pd
 import uvicorn
 import io
 import json
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 app = FastAPI()
 
@@ -25,6 +25,7 @@ class ChatRequest(BaseModel):
 
 class JoinRequest(BaseModel):
     files: List[List[dict]]
+    keys: Optional[List[Dict[str, str]]] = None  # manual joins: [{file1, col1, file2, col2}]
 
 class DetectKeysRequest(BaseModel):
     files: List[dict]  # {"fileName": str, "data": [...]}
@@ -53,6 +54,48 @@ def detect_keys(req: DetectKeysRequest):
         return {"matches": matches[:10]}
     except Exception as e:
         return {"error": f"Key detection failed: {str(e)}"}
+
+@app.post("/join-files")
+def join_files(payload: JoinRequest):
+    try:
+        files = payload.files
+        keys = payload.keys or []
+        if len(files) < 2:
+            return {"error": "Need at least 2 datasets to join."}
+
+        # Name mapping (assume order): file0, file1, file2...
+        names = [f"file{i}" for i in range(len(files))]
+        dfs = {names[i]: pd.DataFrame(files[i]) for i in range(len(files))}
+        name_map = {names[i]: f"file{i}" for i in range(len(files))}
+
+        joined = list(dfs.items())[0][1].copy()
+        joins = []
+
+        used = set([list(dfs.keys())[0]])
+        for join in keys:
+            f1, c1 = join['file1'], join['col1']
+            f2, c2 = join['file2'], join['col2']
+            if f1 in dfs and f2 in dfs:
+                if f1 in used:
+                    base = dfs[f1]
+                    other = dfs[f2]
+                    joined = pd.merge(joined, other, left_on=c1, right_on=c2, how='left')
+                    used.add(f2)
+                    joins.append(f"Joined {f1}.{c1} = {f2}.{c2}")
+                elif f2 in used:
+                    base = dfs[f2]
+                    other = dfs[f1]
+                    joined = pd.merge(joined, other, left_on=c2, right_on=c1, how='left')
+                    used.add(f1)
+                    joins.append(f"Joined {f2}.{c2} = {f1}.{c1}")
+
+        preview = joined.head(5).to_dict(orient="records")
+        return {
+            "data": preview,
+            "join_summary": joins or ["✅ Manual join completed"]
+        }
+    except Exception as e:
+        return {"error": f"Join failed: {str(e)}"}
 
 @app.post("/chat")
 def chat_endpoint(payload: ChatRequest):
@@ -120,37 +163,6 @@ def upload_file(file: UploadFile = File(...)):
         }
     except Exception as e:
         return {"error": f"Failed to process file: {str(e)}"}
-
-@app.post("/join-files")
-def join_files(payload: JoinRequest):
-    try:
-        dfs = [pd.DataFrame(f) for f in payload.files if isinstance(f, list) and len(f) > 0]
-        if len(dfs) < 2:
-            return {"error": "Need at least 2 datasets to join."}
-
-        merged = dfs[0].copy()
-        join_info = []
-        for i in range(1, len(dfs)):
-            df2 = dfs[i]
-            best_match = None
-            best_score = 0
-            for col1 in merged.columns:
-                for col2 in df2.columns:
-                    overlap = len(set(merged[col1]) & set(df2[col2]))
-                    if overlap > best_score:
-                        best_score = overlap
-                        best_match = (col1, col2)
-            if best_match and best_score > 0:
-                merged = pd.merge(merged, df2, left_on=best_match[0], right_on=best_match[1], how='left')
-                join_info.append(f"Joined on {best_match[0]} = {best_match[1]}")
-
-        preview = merged.head(5).to_dict(orient="records")
-        return {
-            "data": preview,
-            "join_summary": join_info
-        }
-    except Exception as e:
-        return {"error": f"Join failed: {str(e)}"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
