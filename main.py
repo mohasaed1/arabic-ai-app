@@ -1,11 +1,10 @@
-# main.py (join-files with explicit column control)
+# main.py (clean version)
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 import uvicorn
 import io
-import json
 from typing import List, Optional, Dict
 
 app = FastAPI()
@@ -63,11 +62,8 @@ def join_files(payload: JoinRequest):
         if len(files) < 2:
             return {"error": "Need at least 2 datasets to join."}
 
-        # Name mapping (assume order): file0, file1, file2...
         names = [f"file{i}" for i in range(len(files))]
         dfs = {names[i]: pd.DataFrame(files[i]) for i in range(len(files))}
-        name_map = {names[i]: f"file{i}" for i in range(len(files))}
-
         joined = list(dfs.items())[0][1].copy()
         joins = []
 
@@ -77,15 +73,11 @@ def join_files(payload: JoinRequest):
             f2, c2 = join['file2'], join['col2']
             if f1 in dfs and f2 in dfs:
                 if f1 in used:
-                    base = dfs[f1]
-                    other = dfs[f2]
-                    joined = pd.merge(joined, other, left_on=c1, right_on=c2, how='left')
+                    joined = pd.merge(joined, dfs[f2], left_on=c1, right_on=c2, how='left')
                     used.add(f2)
                     joins.append(f"Joined {f1}.{c1} = {f2}.{c2}")
                 elif f2 in used:
-                    base = dfs[f2]
-                    other = dfs[f1]
-                    joined = pd.merge(joined, other, left_on=c2, right_on=c1, how='left')
+                    joined = pd.merge(joined, dfs[f1], left_on=c2, right_on=c1, how='left')
                     used.add(f1)
                     joins.append(f"Joined {f2}.{c2} = {f1}.{c1}")
 
@@ -166,24 +158,3 @@ def upload_file(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
-if (parsedFiles.length === 1) {
-  const data = parsedFiles[0].data;
-  setAllData(data);
-  const headers = [{
-    fileName: parsedFiles[0].name,
-    headers: Object.keys(data[0] || {}).filter(k => k && !k.toLowerCase().includes('empty'))
-  }];
-  setFileHeaders(headers);
-  setSelectedColumns(headers.map(h => h.headers.slice(0, 1)));
-  setInsights(generateInsights(data));
-
-  const validCols = headers[0].headers;
-  const textCol = validCols.find(h => typeof data[0][h] === 'string' && data[0][h].trim());
-  const numCol = validCols.find(h => !isNaN(parseFloat(data[0][h])));
-  if (textCol && numCol) {
-    setSuggestedChart({ x: textCol, y: numCol, type: 'bar' });
-  }
-runFullAI();
-
-}
