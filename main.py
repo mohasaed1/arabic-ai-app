@@ -1,4 +1,4 @@
-# main.py (clean version)
+# main.py (fixed version with date handling and better chat logic)
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -24,10 +24,10 @@ class ChatRequest(BaseModel):
 
 class JoinRequest(BaseModel):
     files: List[List[dict]]
-    keys: Optional[List[Dict[str, str]]] = None  # manual joins: [{file1, col1, file2, col2}]
+    keys: Optional[List[Dict[str, str]]] = None
 
 class DetectKeysRequest(BaseModel):
-    files: List[dict]  # {"fileName": str, "data": [...]}
+    files: List[dict]
 
 @app.post("/detect-keys")
 def detect_keys(req: DetectKeysRequest):
@@ -64,9 +64,9 @@ def join_files(payload: JoinRequest):
 
         names = [f"file{i}" for i in range(len(files))]
         dfs = {names[i]: pd.DataFrame(files[i]) for i in range(len(files))}
+
         joined = list(dfs.items())[0][1].copy()
         joins = []
-
         used = set([list(dfs.keys())[0]])
         for join in keys:
             f1, c1 = join['file1'], join['col1']
@@ -82,10 +82,7 @@ def join_files(payload: JoinRequest):
                     joins.append(f"Joined {f2}.{c2} = {f1}.{c1}")
 
         preview = joined.head(5).to_dict(orient="records")
-        return {
-            "data": preview,
-            "join_summary": joins or ["✅ Manual join completed"]
-        }
+        return {"data": preview, "join_summary": joins or ["✅ Manual join completed"]}
     except Exception as e:
         return {"error": f"Join failed: {str(e)}"}
 
@@ -98,11 +95,21 @@ def chat_endpoint(payload: ChatRequest):
         if df.empty:
             return {"reply": "❌ البيانات غير كافية للإجابة." if lang == 'ar' else "❌ Not enough data to answer."}
 
-        targets = ['total', 'sum', 'average', 'count', 'اجمالي', 'مجموع', 'متوسط', 'عدد']
-        metric_col = next((col for col in df.columns if any(k in col.lower() for k in ['revenue', 'profit', 'cost', 'sold', 'price', 'units', 'مبيعات', 'الربح'])), None)
-        group_col = next((col for col in df.columns if any(k in col.lower() for k in ['category', 'type', 'item', 'region', 'country', 'القسم', 'النوع'])), None)
+        col_map = {
+            'units': ['units', 'units sold', 'الوحدات'],
+            'group': ['category', 'type', 'item', 'region', 'country', 'القسم', 'النوع']
+        }
 
-        if any(t in msg for t in targets) and metric_col:
+        metric_col = next((c for c in df.columns if any(k in c.lower() for k in col_map['units'])), None)
+        group_col = next((c for c in df.columns if any(k in c.lower() for k in col_map['group'])), None)
+
+        if metric_col:
+            try:
+                df[metric_col] = pd.to_numeric(df[metric_col], errors='coerce')
+                df.dropna(subset=[metric_col], inplace=True)
+            except:
+                return {"reply": "❌ Unable to interpret metric column."}
+
             if group_col and group_col != metric_col:
                 summary = df.groupby(group_col)[metric_col].sum().sort_values(ascending=False).head(5)
                 lines = [f"📊 {k}: {v:.2f}" for k, v in summary.items()]
@@ -114,7 +121,6 @@ def chat_endpoint(payload: ChatRequest):
             reply = "🔍 يمكنك طرح أي سؤال حول المبيعات أو الأداء، وسنقوم بالتحليل." if lang == 'ar' else "🔍 Ask any question about sales or performance, and we'll analyze it."
 
         return {"reply": reply}
-
     except Exception as e:
         return {"reply": f"❌ خطأ في المعالجة: {str(e)}" if lang == 'ar' else f"❌ Processing error: {str(e)}"}
 
@@ -130,14 +136,23 @@ def upload_file(file: UploadFile = File(...)):
             return {"error": "Unsupported file format."}
 
         preview = df.head(5).to_dict(orient="records")
-        summary = {
-            "rows": len(df),
-            "columns": list(df.columns),
-        }
+        summary = {"rows": len(df), "columns": list(df.columns)}
 
         insights = {}
         for col in df.columns:
-            if pd.api.types.is_numeric_dtype(df[col]):
+            try:
+                parsed = pd.to_datetime(df[col])
+                if not parsed.isnull().all():
+                    insights[col] = {
+                        "type": "date",
+                        "earliest": str(parsed.min().date()),
+                        "latest": str(parsed.max().date())
+                    }
+                    continue
+            except:
+                pass
+
+            if pd.api.types.is_numeric_dtype(df[col]) and 'id' not in col.lower():
                 insights[col] = {
                     "min": float(df[col].min()),
                     "max": float(df[col].max()),
@@ -151,7 +166,7 @@ def upload_file(file: UploadFile = File(...)):
             "headers": list(df.columns),
             "data": preview,
             "summary": summary,
-            "insights": insights,
+            "insights": insights
         }
     except Exception as e:
         return {"error": f"Failed to process file: {str(e)}"}
