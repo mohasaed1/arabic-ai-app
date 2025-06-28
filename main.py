@@ -1,4 +1,4 @@
-# main.py (joins multiple uploaded tables with key inference)
+# main.py 
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -26,24 +26,33 @@ class ChatRequest(BaseModel):
 class JoinRequest(BaseModel):
     files: List[List[dict]]
 
-# Helper to infer join keys between dataframes
-def infer_joins(dfs):
-    merged = dfs[0].copy()
-    join_info = []
-    for i in range(1, len(dfs)):
-        df2 = dfs[i]
-        best_match = None
-        best_score = 0
-        for col1 in merged.columns:
-            for col2 in df2.columns:
-                common = len(set(merged[col1]) & set(df2[col2]))
-                if common > best_score:
-                    best_score = common
-                    best_match = (col1, col2)
-        if best_match and best_score > 0:
-            merged = pd.merge(merged, df2, left_on=best_match[0], right_on=best_match[1], how='left')
-            join_info.append(f"Joined on {best_match[0]} = {best_match[1]}")
-    return merged, join_info
+class DetectKeysRequest(BaseModel):
+    files: List[dict]  # {"fileName": str, "data": [...]}
+
+@app.post("/detect-keys")
+def detect_keys(req: DetectKeysRequest):
+    try:
+        matches = []
+        dfs = [(f['fileName'], pd.DataFrame(f['data'])) for f in req.files if 'data' in f]
+        for i in range(len(dfs)):
+            for j in range(i + 1, len(dfs)):
+                name1, df1 = dfs[i]
+                name2, df2 = dfs[j]
+                for col1 in df1.columns:
+                    for col2 in df2.columns:
+                        overlap = len(set(df1[col1]) & set(df2[col2]))
+                        if overlap > 0:
+                            matches.append({
+                                "file1": name1,
+                                "col1": col1,
+                                "file2": name2,
+                                "col2": col2,
+                                "score": overlap
+                            })
+        matches.sort(key=lambda x: -x['score'])
+        return {"matches": matches[:10]}
+    except Exception as e:
+        return {"error": f"Key detection failed: {str(e)}"}
 
 @app.post("/chat")
 def chat_endpoint(payload: ChatRequest):
@@ -72,7 +81,7 @@ def chat_endpoint(payload: ChatRequest):
         return {"reply": reply}
 
     except Exception as e:
-        return {"reply": f"❌ خطأ في المعالجة: {str(e)}" if payload.lang == 'ar' else f"❌ Processing error: {str(e)}"}
+        return {"reply": f"❌ خطأ في المعالجة: {str(e)}" if lang == 'ar' else f"❌ Processing error: {str(e)}"}
 
 @app.post("/upload-file")
 def upload_file(file: UploadFile = File(...)):
@@ -119,9 +128,23 @@ def join_files(payload: JoinRequest):
         if len(dfs) < 2:
             return {"error": "Need at least 2 datasets to join."}
 
-        merged, join_info = infer_joins(dfs)
-        preview = merged.head(5).to_dict(orient="records")
+        merged = dfs[0].copy()
+        join_info = []
+        for i in range(1, len(dfs)):
+            df2 = dfs[i]
+            best_match = None
+            best_score = 0
+            for col1 in merged.columns:
+                for col2 in df2.columns:
+                    overlap = len(set(merged[col1]) & set(df2[col2]))
+                    if overlap > best_score:
+                        best_score = overlap
+                        best_match = (col1, col2)
+            if best_match and best_score > 0:
+                merged = pd.merge(merged, df2, left_on=best_match[0], right_on=best_match[1], how='left')
+                join_info.append(f"Joined on {best_match[0]} = {best_match[1]}")
 
+        preview = merged.head(5).to_dict(orient="records")
         return {
             "data": preview,
             "join_summary": join_info
