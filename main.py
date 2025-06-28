@@ -1,4 +1,4 @@
-# main.py 
+# main.py (joins multiple uploaded tables with key inference)
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -23,13 +23,27 @@ class ChatRequest(BaseModel):
     data: List[dict]
     lang: Optional[str] = "en"
 
-# Helper to detect relevant columns
-def find_relevant_column(df, keywords):
-    for col in df.columns:
-        for kw in keywords:
-            if kw.lower() in col.lower():
-                return col
-    return None
+class JoinRequest(BaseModel):
+    files: List[List[dict]]
+
+# Helper to infer join keys between dataframes
+def infer_joins(dfs):
+    merged = dfs[0].copy()
+    join_info = []
+    for i in range(1, len(dfs)):
+        df2 = dfs[i]
+        best_match = None
+        best_score = 0
+        for col1 in merged.columns:
+            for col2 in df2.columns:
+                common = len(set(merged[col1]) & set(df2[col2]))
+                if common > best_score:
+                    best_score = common
+                    best_match = (col1, col2)
+        if best_match and best_score > 0:
+            merged = pd.merge(merged, df2, left_on=best_match[0], right_on=best_match[1], how='left')
+            join_info.append(f"Joined on {best_match[0]} = {best_match[1]}")
+    return merged, join_info
 
 @app.post("/chat")
 def chat_endpoint(payload: ChatRequest):
@@ -40,12 +54,10 @@ def chat_endpoint(payload: ChatRequest):
         if df.empty:
             return {"reply": "❌ البيانات غير كافية للإجابة." if lang == 'ar' else "❌ Not enough data to answer."}
 
-        # Common targets
         targets = ['total', 'sum', 'average', 'count', 'اجمالي', 'مجموع', 'متوسط', 'عدد']
-        metric_col = find_relevant_column(df, ['revenue', 'profit', 'cost', 'sold', 'price', 'units', 'مبيعات', 'الربح'])
-        group_col = find_relevant_column(df, ['category', 'type', 'item', 'region', 'country', 'القسم', 'النوع'])
+        metric_col = next((col for col in df.columns if any(k in col.lower() for k in ['revenue', 'profit', 'cost', 'sold', 'price', 'units', 'مبيعات', 'الربح'])), None)
+        group_col = next((col for col in df.columns if any(k in col.lower() for k in ['category', 'type', 'item', 'region', 'country', 'القسم', 'النوع'])), None)
 
-        # Simulate NLP intent detection
         if any(t in msg for t in targets) and metric_col:
             if group_col and group_col != metric_col:
                 summary = df.groupby(group_col)[metric_col].sum().sort_values(ascending=False).head(5)
@@ -99,6 +111,23 @@ def upload_file(file: UploadFile = File(...)):
         }
     except Exception as e:
         return {"error": f"Failed to process file: {str(e)}"}
+
+@app.post("/join-files")
+def join_files(payload: JoinRequest):
+    try:
+        dfs = [pd.DataFrame(f) for f in payload.files if isinstance(f, list) and len(f) > 0]
+        if len(dfs) < 2:
+            return {"error": "Need at least 2 datasets to join."}
+
+        merged, join_info = infer_joins(dfs)
+        preview = merged.head(5).to_dict(orient="records")
+
+        return {
+            "data": preview,
+            "join_summary": join_info
+        }
+    except Exception as e:
+        return {"error": f"Join failed: {str(e)}"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
